@@ -9,7 +9,7 @@ from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, HTMLResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from bson import ObjectId
@@ -377,3 +377,14 @@ async def api_alerts():
         {"createdAt": {"$gte": cutoff}}
     ).sort("createdAt", -1).to_list(length=100)
     return [_serialize(d) for d in docs]
+
+
+# ── Serve frontend terminal UI ────────────────────────────────────────────────
+@app.get("/ui", include_in_schema=False)
+async def frontend():
+    """Serves the terminal UI. Open http://localhost:8080/ui in browser."""
+    try:
+        with open("frontend/index.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    except FileNotFoundError:
+        return HTMLResponse("<h1>frontend/index.html not found</h1>", status_code=404)

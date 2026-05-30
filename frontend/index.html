@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SENTINEL — Autonomous Outbreak Coordination Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #050d05;
+  --bg-panel:    #071207;
+  --bg-input:    #0a170a;
+  --border:      #152815;
+  --border-hi:   #1e3c1e;
+
+  --green:       #00ff41;
+  --green-soft:  #38b558;
+  --green-muted: #4a7a52;
+  --amber:       #ffaa00;
+  --amber-dim:   #9a6800;
+  --red:         #ff4545;
+  --red-dim:     #8a2020;
+  --cyan:        #3dd9ff;
+  --critical:    #ff0055;
+  --white:       #c0d4c0;
+  --dim:         #1e3820;
+  --vdim:        #0f1e0f;
+
+  --font: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--green-muted);
+  font-family: var(--font);
+  font-size: 12px;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── App shell ───────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-rows: 44px 1fr 108px;
+  height: 100vh;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-hi);
+  flex-shrink: 0;
+}
+
+.logo {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 5px;
+  color: var(--green);
+  text-shadow: 0 0 12px rgba(0,255,65,0.35);
+}
+
+.logo-sub {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--green-muted);
+  letter-spacing: 2px;
+  margin-left: 12px;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  color: var(--green-muted);
+}
+
+.sdot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--dim);
+}
+.sdot.ok  { background: var(--green); box-shadow: 0 0 6px rgba(0,255,65,.6); animation: hb 2s infinite; }
+.sdot.err { background: var(--red); }
+
+@keyframes hb { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+.sv    { color: var(--white); }
+.sv.ok { color: var(--green); }
+.sv.er { color: var(--red); }
+.sv.wn { color: var(--amber); }
+.sep   { color: var(--dim); }
+
+/* ── Main grid ───────────────────────────────────────────── */
+main {
+  display: grid;
+  grid-template-columns: 1fr 310px;
+  overflow: hidden;
+}
+
+/* ── Feed panel (left) ───────────────────────────────────── */
+.feed-panel {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.ph {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--vdim);
+  flex-shrink: 0;
+}
+
+.pt {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: var(--green-soft);
+}
+
+.pm { font-size: 10px; color: var(--dim); }
+
+#feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0 4px;
+}
+
+#feed::-webkit-scrollbar      { width: 3px; }
+#feed::-webkit-scrollbar-track { background: var(--bg); }
+#feed::-webkit-scrollbar-thumb { background: var(--border-hi); }
+
+.ee {
+  padding: 2px 12px;
+  line-height: 1.55;
+  border-left: 2px solid transparent;
+  transition: background .1s;
+}
+
+.ee:hover { background: var(--vdim); }
+
+@keyframes fin {
+  0%   { background: rgba(0,255,65,.07); border-left-color: var(--green-soft); }
+  100% { background: transparent; border-left-color: transparent; }
+}
+@keyframes fin-r {
+  0%   { background: rgba(255,69,69,.1); border-left-color: var(--red); }
+  100% { background: transparent; border-left-color: transparent; }
+}
+@keyframes fin-c {
+  0%   { background: rgba(255,0,85,.12); border-left-color: var(--critical); }
+  100% { background: transparent; border-left-color: transparent; }
+}
+
+.ee.nx    { animation: fin   1.6s ease-out forwards; }
+.ee.nx-r  { animation: fin-r 1.6s ease-out forwards; }
+.ee.nx-c  { animation: fin-c 1.6s ease-out forwards; }
+
+.et { color: var(--dim); margin-right: 8px; font-size: 10.5px; user-select: none; }
+.eb { font-size: 11px; }
+
+/* event-type colours */
+.ev-report   .eb { color: var(--green); }
+.ev-cluster  .eb { color: var(--amber); }
+.ev-collapse .eb { color: var(--red); font-weight: 700; }
+.ev-esc      .eb { color: #ff8c42; }
+.ev-brief    .eb { color: var(--cyan); }
+.ev-auto     .eb { color: var(--critical); font-weight: 700; }
+.ev-sys      .eb { color: var(--green-muted); font-style: italic; }
+.ev-indent   .eb { color: var(--green-muted); padding-left: 22px; }
+
+/* blinking cursor */
+.cursor-line { padding: 2px 12px; }
+.cur {
+  display: inline-block;
+  width: 7px; height: 12px;
+  background: var(--green);
+  vertical-align: middle;
+  margin-left: 2px;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 50%{ opacity:0 } }
+
+/* ── Side panels (right) ─────────────────────────────────── */
+.side-panels {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.topo-panel  { flex: 0 0 auto; max-height: 52%; border-bottom: 1px solid var(--border); overflow-y: auto; }
+.cont-panel  { flex: 1; overflow-y: auto; }
+
+.topo-panel::-webkit-scrollbar,
+.cont-panel::-webkit-scrollbar { width: 3px; }
+.topo-panel::-webkit-scrollbar-thumb,
+.cont-panel::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* CHW entries */
+.chw {
+  padding: 7px 12px 6px;
+  border-bottom: 1px solid var(--vdim);
+}
+.chw-r1 {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 4px;
+}
+.chw-name {
+  font-size: 11px; color: var(--white);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 155px;
+}
+.chw-sc { font-size: 11px; font-weight: 700; }
+.bar-t  { height: 2px; background: var(--vdim); border-radius: 1px; margin-bottom: 4px; }
+.bar-f  { height: 2px; border-radius: 1px; transition: width .5s; }
+.chw-r2 { display: flex; justify-content: space-between; font-size: 9px; color: var(--dim); }
+
+.badge {
+  font-size: 8px; font-weight: 700; letter-spacing: 1px;
+  padding: 1px 5px; border-radius: 2px;
+}
+.b-act  { color: var(--green);    border: 1px solid var(--green-muted); }
+.b-deg  { color: var(--amber);    border: 1px solid var(--amber-dim); }
+.b-unr  { color: var(--red);      border: 1px solid var(--red-dim); animation: hb 1s infinite; }
+.b-off  { color: var(--dim);      border: 1px solid var(--vdim); }
+
+/* Contact entries */
+.ctc {
+  padding: 6px 12px 5px;
+  border-bottom: 1px solid var(--vdim);
+}
+.ctc-r1 {
+  display: flex; align-items: center; gap: 4px; margin-bottom: 3px;
+}
+.ctc-ref  { font-size: 10px; color: var(--green-soft); min-width: 40px; }
+.ctc-name { font-size: 11px; color: var(--white); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctc-sc   { font-size: 11px; font-weight: 700; }
+.ctc-r2   { display: flex; gap: 10px; font-size: 9.5px; color: var(--dim); }
+
+/* ── Command bar ─────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border-hi);
+  background: var(--bg-panel);
+  padding: 8px 12px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.rpt-row {
+  display: flex; align-items: center; gap: 8px;
+}
+
+.pfx {
+  font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  color: var(--green); white-space: nowrap;
+}
+
+#ri {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border-hi);
+  border-radius: 2px;
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 5px 10px;
+  outline: none;
+  caret-color: var(--green);
+}
+#ri:focus { border-color: var(--green-muted); box-shadow: 0 0 8px rgba(0,255,65,.08); }
+#ri::placeholder { color: var(--dim); }
+
+.act-row  { display: flex; gap: 7px; align-items: center; }
+.act-lbl  { font-size: 9px; color: var(--dim); letter-spacing: 1.5px; white-space: nowrap; }
+
+.btn {
+  font-family: var(--font); font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; padding: 4px 10px;
+  border-radius: 2px; border: 1px solid; cursor: pointer;
+  background: transparent; white-space: nowrap;
+  transition: background .12s, box-shadow .12s;
+}
+.btn:active { transform: scale(.97); }
+
+.bg  { color: var(--green); border-color: var(--green-muted); }
+.bg:hover  { background: rgba(0,255,65,.07); }
+.ba  { color: var(--amber); border-color: var(--amber-dim); }
+.ba:hover  { background: rgba(255,170,0,.07); }
+.br  { color: var(--red);   border-color: var(--red-dim); }
+.br:hover  { background: rgba(255,69,69,.07); }
+.bc  { color: var(--cyan);  border-color: #2a7e99; }
+.bc:hover  { background: rgba(61,217,255,.07); }
+.bd  { color: var(--green-muted); border-color: var(--dim); }
+.bd:hover  { background: rgba(0,255,65,.04); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div>
+      <span class="logo">SENTINEL</span>
+      <span class="logo-sub">AUTONOMOUS OUTBREAK COORDINATION INTELLIGENCE</span>
+    </div>
+    <div class="status-bar">
+      <span class="sdot" id="sys-dot"></span>
+      <span class="sep">|</span>
+      <span>DATABASE</span>
+      <span class="sv" id="db-st">CONNECTING</span>
+      <span class="sep">|</span>
+      <span>STREAM</span>
+      <span class="sv" id="ss-st">CONNECTING</span>
+      <span class="sep">|</span>
+      <span>MODEL</span>
+      <span class="sv ok">GEMINI 3.5 FLASH</span>
+      <span class="sep">|</span>
+      <span id="clk">--:--:-- UTC</span>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- Event feed -->
+    <div class="feed-panel">
+      <div class="ph">
+        <span class="pt">⬤ &nbsp;OPERATIONAL EVENT FEED</span>
+        <span class="pm" id="ev-ct">0 events</span>
+      </div>
+      <div id="feed"></div>
+    </div>
+
+    <!-- Side panels -->
+    <div class="side-panels">
+
+      <div class="topo-panel">
+        <div class="ph">
+          <span class="pt">CHW HEARTBEAT STATUS</span>
+          <span class="pm" id="chw-sum">—</span>
+        </div>
+        <div id="topo"></div>
+      </div>
+
+      <div class="cont-panel">
+        <div class="ph">
+          <span class="pt">ACTIVE CONTACTS · RISK RANKED</span>
+          <span class="pm" id="ctc-sum">—</span>
+        </div>
+        <div id="ctcs"></div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- COMMAND BAR -->
+  <footer>
+    <div class="rpt-row">
+      <span class="pfx">CHW REPORT ›</span>
+      <input id="ri" type="text" autocomplete="off" spellcheck="false"
+        placeholder="e.g.  Visited James Ssemwogerere in Nakawa. Day 9 monitoring. Fever since yesterday."
+        onkeydown="if(event.key==='Enter')submitReport()">
+      <button class="btn bg" onclick="submitReport()">▶ SUBMIT</button>
+    </div>
+    <div class="act-row">
+      <span class="act-lbl">TOOLS →</span>
+      <button class="btn ba"  onclick="doCluster()">DETECT CLUSTER</button>
+      <button class="btn br"  onclick="doCollapse()">⚡ COLLAPSE CHECK</button>
+      <button class="btn bc"  onclick="doBrief()">MORNING BRIEF</button>
+      <button class="btn bd"  onclick="doDegrade()">FORCE DEGRADATION</button>
+      <button class="btn bd"  onclick="refreshPanels()">↻ REFRESH</button>
+    </div>
+  </footer>
+
+</div>
+<script>
+'use strict';
+
+const API   = window.location.origin;
+let evCt    = 0;
+let sse     = null;
+let doScroll = true;
+
+/* ── Clock ───────────────────────────────────────────────── */
+setInterval(() => {
+  document.getElementById('clk').textContent =
+    new Date().toISOString().slice(11,19) + ' UTC';
+}, 1000);
+
+/* ── Escape HTML ─────────────────────────────────────────── */
+const esc = s => String(s||'')
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/* ── Timestamp formatter ─────────────────────────────────── */
+function fmt(iso) {
+  try { return new Date(iso).toISOString().slice(11,19); }
+  catch { return new Date().toISOString().slice(11,19); }
+}
+const now = () => new Date().toISOString().slice(11,19);
+
+/* ── Color helpers ───────────────────────────────────────── */
+const riskCol  = s => s>=85?'var(--critical)':s>=70?'var(--red)':s>=50?'var(--amber)':'var(--green-soft)';
+const scoreCol = s => s>=70?'var(--green)':s>=40?'var(--amber)':'var(--red)';
+const badgeCls = st => st==='active'?'b-act':st==='degraded'?'b-deg':st==='unresponsive'?'b-unr':'b-off';
+
+/* ── Add event entry ─────────────────────────────────────── */
+function add(cls, newCls, ts, lines) {
+  const feed = document.getElementById('feed');
+  const old  = feed.querySelector('.cursor-line');
+  if (old) old.remove();
+
+  lines.forEach((line, i) => {
+    const d  = document.createElement('div');
+    d.className = `ee ${cls}${i===0&&newCls?' '+newCls:''}`;
+    d.innerHTML =
+      `<span class="et">[${ts}]</span>` +
+      `<span class="eb">${esc(line)}</span>`;
+    feed.appendChild(d);
+    evCt++;
+  });
+
+  const cur = document.createElement('div');
+  cur.className = 'cursor-line';
+  cur.innerHTML = `<span class="et">[${now()}]</span><span class="cur"></span>`;
+  feed.appendChild(cur);
+
+  document.getElementById('ev-ct').textContent = `${evCt} events`;
+  if (doScroll) feed.scrollTop = feed.scrollHeight;
+}
+
+document.getElementById('feed').addEventListener('scroll', e => {
+  const el = e.target;
+  doScroll = (el.scrollHeight - el.scrollTop - el.clientHeight) < 40;
+});
+
+/* ── SSE event formatter ─────────────────────────────────── */
+function dispatchEvent(type, ts, d) {
+  const t = fmt(ts);
+  switch(type) {
+
+    case 'field_report': {
+      const sy = (d.symptomsReported||[]).join(', ')||'asymptomatic';
+      add('ev-report','nx',t,[
+        `REPORT LOGGED — ${d.contactName||'?'} | `+
+        `${d.district||''} | Day ${d.monitoringDay||'?'} | `+
+        `${d.riskLevel||''} (${d.riskScore||0}/100)`,
+        `  Symptoms: ${sy} | CHW: ${d.chwName||'unknown'}`
+      ]); break;
+    }
+
+    case 'cluster_detected': {
+      const pct = d.confidence ? Math.round(d.confidence*100)+'%' :
+                  (d.confidence_percent||'?%');
+      add('ev-cluster','nx',t,[
+        `CLUSTER ALERT — ${d.eventName||'cluster'} | `+
+        `${d.contactCount||0} contacts | confidence: ${pct}`,
+        `  Symptomatic: ${d.symptomaticCount||0} | `+
+        `Missed follow-ups: ${d.missedFollowups||0} | `+
+        `Districts: ${(d.districts||[]).join(', ')}`
+      ]); break;
+    }
+
+    case 'operational_collapse': {
+      const refs = (d.contactsAffected||[]).join(', ')||'unknown';
+      add('ev-collapse','nx-r',t,[
+        `⚡ OPERATIONAL COLLAPSE — ${d.chwName||'?'} | `+
+        `score: ${d.chwHeartbeatScore||0}/100 | `+
+        `${d.hoursSilent||0}h silent`,
+        `  GAP RISK: ${d.gapRiskScore||0} | UNMONITORED: ${refs}`,
+        `  AUTO-REASSIGNED → ${d.reassignedTo||'unknown'} | `+
+        `Supervisor: ${d.supervisorName||'unknown'}`,
+        `  ACTION TAKEN: auto_reassignment_completed`
+      ]);
+      setTimeout(()=>{loadTopo();loadCtcs();},800);
+      break;
+    }
+
+    case 'supervisor_escalation':
+      add('ev-esc','nx',t,[
+        `SUPERVISOR ALERT — Level ${d.escalationLevel||'?'}: `+
+        `${d.escalationLabel||''} | District: ${d.district||'?'}`,
+        `  ${d.reason||''}`,
+        `  Contacts: ${(d.contactRefs||[]).join(', ')} | `+
+        `Supervisor: ${d.supervisorName||'unknown'}`
+      ]); break;
+
+    case 'morning_brief':
+      add('ev-brief','nx',t,[
+        `MORNING BRIEF — ${d.briefDate||'?'} | `+
+        `${d.totalActiveContacts||0} active | `+
+        `${d.peakWindowCount||0} in peak window | `+
+        `${d.priorityVisitCount||0} priority visits`,
+        `  Missed follow-ups: ${d.missedFollowupCount||0} | `+
+        `CHW warnings: ${d.atRiskCHWCount||0}`
+      ]); break;
+
+    case 'autonomous_action':
+      add('ev-auto','nx-c',t,[
+        `◈ AUTONOMOUS ACTION — trigger: change_stream | `+
+        `CHW: ${d.chwName||'?'} (score ${d.triggerScore||0}/100)`,
+        `  ${d.result||''}`
+      ]); break;
+
+    default: {
+      const msg = d.message||d.alertText||JSON.stringify(d).slice(0,100);
+      add('ev-sys','nx',t,[`[${type.toUpperCase()}] ${msg}`]);
+    }
+  }
+}
+
+/* ── SSE connection ──────────────────────────────────────── */
+function startSSE() {
+  if (sse) sse.close();
+  sse = new EventSource(`${API}/api/events/stream`);
+
+  sse.onopen = () => {
+    const el = document.getElementById('ss-st');
+    el.textContent = 'LIVE'; el.className = 'sv ok';
+    add('ev-sys','',now(),['Stream connected — autonomous monitoring active']);
+  };
+
+  sse.onmessage = e => {
+    try {
+      const p = JSON.parse(e.data);
+      dispatchEvent(p.type, p.timestamp, p.data);
+    } catch(err){ console.error(err); }
+  };
+
+  sse.onerror = () => {
+    const el = document.getElementById('ss-st');
+    el.textContent = 'RECONNECTING'; el.className = 'sv wn';
+    sse.close();
+    setTimeout(startSSE, 5000);
+  };
+}
+
+/* ── Health check ────────────────────────────────────────── */
+async function checkHealth() {
+  try {
+    const d = await fetch(`${API}/health`).then(r=>r.json());
+    const dot = document.getElementById('sys-dot');
+    const dbEl = document.getElementById('db-st');
+    if (d.status === 'operational') {
+      dot.className = 'sdot ok';
+      dbEl.textContent = 'CONNECTED'; dbEl.className = 'sv ok';
+    } else {
+      dot.className = 'sdot err';
+      dbEl.textContent = 'DEGRADED'; dbEl.className = 'sv er';
+    }
+  } catch {
+    document.getElementById('db-st').textContent = 'OFFLINE';
+    document.getElementById('db-st').className = 'sv er';
+  }
+}
+
+/* ── CHW topology panel ──────────────────────────────────── */
+async function loadTopo() {
+  try {
+    const chws = await fetch(`${API}/api/topology`).then(r=>r.json());
+    const el   = document.getElementById('topo');
+    el.innerHTML = '';
+
+    let active=0, atRisk=0;
+    chws.forEach(c => {
+      const sc  = c.heartbeatScore||0;
+      const col = scoreCol(sc);
+      const bc  = badgeCls(c.status||'offline');
+      if (sc>=70) active++;
+      if (sc<40)  atRisk++;
+      const hours = c.hoursSilent!=null
+        ? `${c.hoursSilent}h ago`
+        : (c.lastReport ? '' : '—');
+      const cnt = (c.assignedContacts||[]).length || c.assignedContactCount || 0;
+      const div = document.createElement('div');
+      div.className = 'chw';
+      div.innerHTML =
+        `<div class="chw-r1">
+           <span class="chw-name" title="${esc(c.name)}">${esc(c.name)}</span>
+           <span class="chw-sc" style="color:${col}">${sc}/100</span>
+         </div>
+         <div class="bar-t"><div class="bar-f" style="width:${sc}%;background:${col}"></div></div>
+         <div class="chw-r2">
+           <span>${esc(c.chwId||'')} &nbsp;·&nbsp; ${cnt} contact${cnt!==1?'s':''} &nbsp;·&nbsp; ${esc(hours)}</span>
+           <span class="badge ${bc}">${(c.status||'offline').toUpperCase()}</span>
+         </div>`;
+      el.appendChild(div);
+    });
+
+    document.getElementById('chw-sum').textContent =
+      `${active} active · ${atRisk} at-risk`;
+  } catch(e) {
+    document.getElementById('topo').innerHTML =
+      '<div style="padding:10px;color:var(--dim)">Load failed</div>';
+  }
+}
+
+/* ── Contacts panel ──────────────────────────────────────── */
+async function loadCtcs() {
+  try {
+    const cs = await fetch(`${API}/api/contacts`).then(r=>r.json());
+    const el = document.getElementById('ctcs');
+    el.innerHTML = '';
+
+    const act = cs.filter(c => c.status==='active_monitoring'||c.status==='escalated');
+    act.forEach(c => {
+      const sc    = c.riskScore||0;
+      const col   = riskColor(sc);
+      const day   = c.monitoringDay||'?';
+      const peak  = (day>=5&&day<=10) ? ' ⚠' : '';
+      const syms  = (c.symptoms||[]).join(', ')||'—';
+      const chw   = (c.assignedCHWName||'').split(' ')[0];
+      const div   = document.createElement('div');
+      div.className = 'ctc';
+      div.innerHTML =
+        `<div class="ctc-r1">
+           <span class="ctc-ref">${esc(c.contactRef||'')}</span>
+           <span class="ctc-name" title="${esc(c.name)}">${esc(c.name)}</span>
+           <span class="ctc-sc" style="color:${col}">${sc}</span>
+         </div>
+         <div class="ctc-r2">
+           <span>Day ${esc(day)}${peak}</span>
+           <span style="color:${sc>=70?col:'var(--dim)'}">${esc(syms.length>28?syms.slice(0,28)+'…':syms)}</span>
+           <span>${esc(chw)}</span>
+         </div>`;
+      el.appendChild(div);
+    });
+
+    document.getElementById('ctc-sum').textContent = `${act.length} active`;
+  } catch(e) {
+    document.getElementById('ctcs').innerHTML =
+      '<div style="padding:10px;color:var(--dim)">Load failed</div>';
+  }
+}
+
+function riskColor(s) { return s>=85?'var(--critical)':s>=70?'var(--red)':s>=50?'var(--amber)':'var(--green-soft)'; }
+
+/* ── Tool buttons ────────────────────────────────────────── */
+async function submitReport() {
+  const inp  = document.getElementById('ri');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  add('ev-sys','',now(),[`PARSING REPORT — "${text.slice(0,75)}${text.length>75?'…':''}"`]);
+  try {
+    const d = await fetch(`${API}/api/tools/log-field-report`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({raw_text:text})
+    }).then(r=>r.json());
+    if (d.success) {
+      add('ev-report','nx',now(),[
+        `REPORT LOGGED — ${d.contact_name||'?'} (${d.contact_ref||''}) | `+
+        `Day ${d.monitoring_day||'?'} | ${d.risk_level} (${d.risk_score}/100)`,
+        `  Symptoms: ${(d.symptoms_detected||[]).join(', ')||'none detected'}`
+      ]);
+      setTimeout(loadCtcs, 600);
+    } else {
+      add('ev-sys','',now(),[`REPORT ERROR — ${d.detail||'unknown'}`]);
+    }
+  } catch(e) { add('ev-sys','',now(),[`REPORT FAILED — ${e.message}`]); }
+}
+
+async function doCluster() {
+  add('ev-sys','',now(),['CLUSTER QUERY RUNNING — scanning all exposure events...']);
+  try {
+    const d = await fetch(`${API}/api/tools/detect-cluster`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({})
+    }).then(r=>r.json());
+    if (d.cluster_detected) {
+      add('ev-cluster','nx',now(),[
+        `CLUSTER ALERT — ${d.event_name||''} | ${d.contact_count} contacts | `+
+        `confidence: ${d.confidence_percent}`,
+        `  Symptomatic: ${d.symptomatic_count} | `+
+        `Missed follow-ups: ${d.missed_followups} | `+
+        `Districts: ${(d.districts_affected||[]).join(', ')}`
+      ]);
+    } else {
+      add('ev-sys','',now(),['CLUSTER SCAN COMPLETE — no cluster above threshold']);
+    }
+  } catch(e) { add('ev-sys','',now(),[`CLUSTER FAILED — ${e.message}`]); }
+}
+
+async function doCollapse() {
+  add('ev-sys','',now(),['COLLAPSE CHECK RUNNING — querying heartbeat topology...']);
+  try {
+    const d = await fetch(`${API}/api/tools/detect-operational-collapse`,{method:'POST'}).then(r=>r.json());
+    if (d.collapse_detected) {
+      add('ev-collapse','nx-r',now(),[
+        `⚡ COLLAPSE DETECTED — ${d.gaps_found} gap(s) | `+
+        `${d.reassignments_completed} reassignment(s) | `+
+        `${d.total_contacts_rerouted} contacts rerouted`,
+        `  ${d.message}`
+      ]);
+      setTimeout(()=>{loadTopo();loadCtcs();},800);
+    } else {
+      add('ev-sys','',now(),[`COLLAPSE CHECK — ${d.message}`]);
+    }
+  } catch(e) { add('ev-sys','',now(),[`COLLAPSE FAILED — ${e.message}`]); }
+}
+
+async function doBrief() {
+  add('ev-sys','',now(),['GENERATING MORNING BRIEF...']);
+  try {
+    const d = await fetch(`${API}/api/tools/get-morning-brief`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({})
+    }).then(r=>r.json());
+    add('ev-brief','nx',now(),[
+      `MORNING BRIEF — ${d.brief_date||'?'} | `+
+      `${d.total_active_contacts||0} active | `+
+      `${d.peak_window_contacts||0} peak window | `+
+      `${d.priority_visit_count||0} priority visits`,
+      `  Missed: ${d.missed_followups||0} | CHW warnings: ${d.at_risk_chws||0}`
+    ]);
+  } catch(e) { add('ev-sys','',now(),[`BRIEF FAILED — ${e.message}`]); }
+}
+
+async function doDegrade() {
+  add('ev-sys','',now(),['FORCING HEARTBEAT DEGRADATION CYCLE...']);
+  try {
+    const d = await fetch(`${API}/api/demo/force-degradation-cycle`,{method:'POST'}).then(r=>r.json());
+    const lines = [
+      `DEGRADATION CYCLE — ${d.chws_updated} score(s) updated | `+
+      `${d.threshold_crossings} threshold crossing(s)`,
+      ...(d.updates||[])
+        .filter(u=>u.old_score!==u.new_score)
+        .map(u=>`  ${u.name}: ${u.old_score} → ${u.new_score} [${u.status}]`)
+    ];
+    add('ev-sys','',now(),lines);
+    if (d.threshold_crossings>0) setTimeout(loadTopo,600);
+  } catch(e) { add('ev-sys','',now(),[`DEGRADE FAILED — ${e.message}`]); }
+}
+
+async function refreshPanels() {
+  await Promise.all([loadTopo(), loadCtcs()]);
+  add('ev-sys','',now(),['Panels refreshed']);
+}
+
+/* ── Boot sequence ───────────────────────────────────────── */
+add('ev-sys','',now(),[
+  '▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓',
+  '  SENTINEL  v1.0',
+  '  Gemini 3.5 Flash  ·  MongoDB Atlas  ·  Agent Builder',
+  '  Kampala, Uganda  ·  Outbreak Coordination Intelligence',
+  '▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓',
+  'Initializing autonomous systems...',
+  'Connecting to MongoDB Atlas change stream...'
+], false);
+
+checkHealth();
+setInterval(checkHealth, 15000);
+startSSE();
+loadTopo();
+loadCtcs();
+setInterval(loadTopo,  8000);
+setInterval(loadCtcs, 12000);
+</script>
+</body>
+</html>
