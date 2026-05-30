@@ -1,0 +1,129 @@
+{
+  "_comment": "OpenAPI-compatible tool definitions for Google Cloud Agent Builder. Register each tool as a Function Tool pointing to the deployed Cloud Run endpoint.",
+  "tools": [
+    {
+      "name": "log_field_report",
+      "description": "Parses a free-text CHW field report using Gemini 3.5 Flash function calling, extracts structured fields (contact name, symptoms, monitoring day, exposure hints), validates them, writes to MongoDB, and updates the CHW heartbeat score. Call this whenever a CHW submits a report in natural language.",
+      "endpoint": "/api/tools/log-field-report",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "raw_text": {
+            "type": "string",
+            "description": "The full text of the CHW field report exactly as submitted"
+          },
+          "chw_id": {
+            "type": "string",
+            "description": "Optional CHW identifier (chwId string like CHW-NKW-001 or MongoDB ObjectId)"
+          }
+        },
+        "required": ["raw_text"]
+      }
+    },
+    {
+      "name": "detect_cluster",
+      "description": "Runs a MongoDB aggregation pipeline to detect outbreak clusters. Cross-references contacts by exposure event, calculates missed follow-ups, and returns a confidence score. Call this automatically after logging any report with symptoms, or when asked about cluster risk.",
+      "endpoint": "/api/tools/detect-cluster",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "exposure_event_id": {
+            "type": "string",
+            "description": "MongoDB ObjectId of a specific exposure event to cluster around"
+          },
+          "district": {
+            "type": "string",
+            "description": "District name to search within (e.g. Nakawa, Kawempe, Kampala Central)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "get_contact_risk_profile",
+      "description": "Returns the full operational risk profile for a contact: risk score, monitoring day, symptoms, follow-up history, CHW heartbeat status, and exposure events. PII (phone number) is excluded by default.",
+      "endpoint": "/api/tools/get-contact-risk-profile",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "contact_ref": {
+            "type": "string",
+            "description": "Contact reference code (e.g. R-027)"
+          },
+          "contact_name": {
+            "type": "string",
+            "description": "Full or partial contact name"
+          },
+          "include_pii": {
+            "type": "boolean",
+            "description": "Set true only when generating final notification alerts. Default false."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "escalate_supervisor",
+      "description": "Generates a supervisor escalation alert for one or more contacts, determines escalation level (1-4), stores the alert in MongoDB, and returns the alert text. Call when a cluster is confirmed, a contact reaches critical risk, or CHW silence is detected.",
+      "endpoint": "/api/tools/escalate-supervisor",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "contact_refs": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "List of contact reference codes to include in the escalation"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable reason for escalation"
+          },
+          "district": {
+            "type": "string",
+            "description": "District where the escalation is occurring"
+          },
+          "is_cluster": {
+            "type": "boolean",
+            "description": "True if this escalation is related to a detected cluster"
+          },
+          "chw_id": {
+            "type": "string",
+            "description": "CHW ID if the escalation involves a specific CHW"
+          }
+        },
+        "required": ["contact_refs", "reason", "district"]
+      }
+    },
+    {
+      "name": "get_morning_brief",
+      "description": "Generates the full autonomous operational intelligence brief: active contacts, priority visit schedule, CHW heartbeat status, missed follow-ups, and recent alerts. Called autonomously at 6 AM via Cloud Scheduler. Also callable on demand.",
+      "endpoint": "/api/tools/get-morning-brief",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target_date": {
+            "type": "string",
+            "description": "Optional date string (YYYY-MM-DD). Defaults to today."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "detect_operational_collapse",
+      "description": "The core differentiating tool. Detects when CHW silence creates dangerous coverage gaps for high-risk contacts in the peak monitoring window (days 5-10). Autonomously reassigns those contacts to the nearest active CHW, writes an operational collapse alert, and generates supervisor notices. Call this on every heartbeat check cycle and whenever a CHW score drops below 40.",
+      "endpoint": "/api/tools/detect-operational-collapse",
+      "method": "POST",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  ]
+}

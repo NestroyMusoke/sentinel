@@ -1,0 +1,30 @@
+{
+  "_comment": "MongoDB MCP Server configuration for Sentinel. This file is used to connect Google Cloud Agent Builder to the official mongodb-mcp-server, enabling Gemini 3.5 Flash to dynamically discover and call MongoDB operations at runtime via the Model Context Protocol.",
+  "mcpServers": {
+    "mongodb-sentinel": {
+      "command": "npx",
+      "args": ["-y", "mongodb-mcp-server@latest"],
+      "env": {
+        "MDB_MCP_CONNECTION_STRING": "${MONGO_URI}",
+        "MDB_MCP_DEFAULT_DB": "sentinel"
+      }
+    }
+  },
+  "agentBuilderIntegration": {
+    "serverName": "mongodb-sentinel",
+    "serverUrl": "See README for Cloud Run deployment URL",
+    "discoveredTools": [
+      "find",
+      "findOne",
+      "aggregate",
+      "insertOne",
+      "insertMany",
+      "updateOne",
+      "updateMany",
+      "deleteOne",
+      "listCollections",
+      "listDatabases"
+    ],
+    "note": "Gemini discovers these tools at runtime via MCP SDK handshake. No tool list needs to be hardcoded."
+  }
+}
