@@ -29,4 +29,4 @@ Thumbs.db
 
 # Google Cloud
 .gcloudignore
-service-account-key.json
+service-account-key.json"deployment/cloud_run.env" 
