@@ -379,6 +379,106 @@ async def api_alerts():
     return [_serialize(d) for d in docs]
 
 
+import hashlib
+
+def _stable_jitter(seed: str, scale: float = 0.003):
+    """Deterministic lat/lng jitter so markers don't jump on refresh."""
+    h = int(hashlib.md5(seed.encode()).hexdigest(), 16)
+    return ((h % 1000) / 1000 - 0.5) * scale, \
+           (((h >> 10) % 1000) / 1000 - 0.5) * scale
+
+@app.get("/api/map-data")
+async def map_data():
+    """CHW and contact locations for the operational map."""
+
+    VILLAGE_COORDS = {
+        "Kiwatule":        (0.3476, 32.6466),
+        "Naguru":          (0.3250, 32.6017),
+        "Nakawa":          (0.3168, 32.6108),
+        "Luzira":          (0.3050, 32.6300),
+        "Mbuya":           (0.3150, 32.6200),
+        "Kamwokya":        (0.3367, 32.5933),
+        "Wandegeya":       (0.3356, 32.5697),
+        "Mulago":          (0.3392, 32.5767),
+        "Kalerwe":         (0.3394, 32.5729),
+        "Kawempe":         (0.3480, 32.5750),
+        "Bwaise":          (0.3542, 32.5664),
+        "Kampala Central": (0.3136, 32.5811),
+        "Central":         (0.3136, 32.5811),
+    }
+
+    CHW_BASE_COORDS = {
+        "CHW-NKW-001": (0.3476, 32.6466),
+        "CHW-NKW-002": (0.3050, 32.6300),
+        "CHW-KCA-001": (0.3136, 32.5811),
+        "CHW-KCA-002": (0.3200, 32.5750),
+        "CHW-KWP-001": (0.3480, 32.5750),
+        "CHW-KWP-002": (0.3542, 32.5664),
+        "CHW-NKW-003": (0.3150, 32.6200),
+        "CHW-KCA-003": (0.3100, 32.5850),
+    }
+
+    NOW = datetime.utcnow()
+
+    # CHWs
+    chws_raw = await async_db["operational_topology"].find(
+        {}, {"phone": 0}
+    ).to_list(length=20)
+
+    chws = []
+    for c in chws_raw:
+        chw_id = c.get("chwId", "")
+        base   = CHW_BASE_COORDS.get(chw_id, (0.3200, 32.5900))
+        jlat, jlng = _stable_jitter(chw_id + "chw")
+        score  = c.get("heartbeatScore", 100)
+        hours  = None
+        if c.get("lastReport"):
+            hours = round((NOW - c["lastReport"]).total_seconds() / 3600, 1)
+        chws.append({
+            "id":             str(c["_id"]),
+            "chwId":          chw_id,
+            "name":           c.get("name"),
+            "district":       c.get("district"),
+            "heartbeatScore": score,
+            "status":         c.get("status", "unknown"),
+            "hoursSilent":    hours,
+            "coverageGapRisk": c.get("coverageGapRisk", 0),
+            "assignedCount":  len(c.get("assignedContacts", [])),
+            "lat":            base[0] + jlat,
+            "lng":            base[1] + jlng,
+        })
+
+    # Contacts
+    contacts_raw = await async_db["contacts"].find(
+        {"status": {"$in": ["active_monitoring", "escalated"]}},
+        {"phone": 0}
+    ).to_list(length=50)
+
+    contacts = []
+    for c in contacts_raw:
+        village  = c.get("village", "")
+        district = c.get("district", "")
+        base = (VILLAGE_COORDS.get(village)
+                or VILLAGE_COORDS.get(district)
+                or (0.3200, 32.5900))
+        jlat, jlng = _stable_jitter(str(c["_id"]) + "ctc", scale=0.004)
+        contacts.append({
+            "id":             str(c["_id"]),
+            "contactRef":     c.get("contactRef"),
+            "name":           c.get("name"),
+            "district":       district,
+            "monitoringDay":  c.get("monitoringDay"),
+            "riskScore":      c.get("riskScore", 0),
+            "symptoms":       c.get("symptoms", []),
+            "status":         c.get("status"),
+            "assignedCHWName": c.get("assignedCHWName"),
+            "lat":            base[0] + jlat,
+            "lng":            base[1] + jlng,
+        })
+
+    return {"chws": chws, "contacts": contacts}
+
+
 # ── Serve frontend terminal UI ────────────────────────────────────────────────
 @app.get("/ui", include_in_schema=False)
 async def frontend():

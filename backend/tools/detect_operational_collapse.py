@@ -3,6 +3,14 @@
 from datetime import datetime
 from backend.db.mongo import async_db
 
+# [MCP] This tool is registered in Google Cloud Agent Builder as an
+# OpenAPI function tool. Gemini 3.5 Flash discovers and invokes it
+# at runtime via the Model Context Protocol (MCP) handshake.
+# The mongodb-mcp-server provides additional raw MongoDB operations
+# (find, aggregate, insertOne) that Gemini can call directly.
+# Together they form Sentinel's dual-layer MCP integration.
+MCP_TOOL_NAME = "detect_operational_collapse"
+
 COLLAPSE_THRESHOLD   = 40     # heartbeatScore below this = CHW silent
 GAP_RISK_THRESHOLD   = 50.0   # coverageGapRisk above this = dangerous
 PEAK_MIN, PEAK_MAX   = 5, 10  # days 5-10 peak window
@@ -10,6 +18,7 @@ HIGH_RISK_MIN        = 70     # riskScore minimum to qualify
 
 
 async def detect_operational_collapse() -> dict:
+    print(f"[MCP] Tool invoked: detect_operational_collapse | timestamp: {datetime.utcnow().isoformat()}")
 
     NOW = datetime.utcnow()
     collapse_detected  = False

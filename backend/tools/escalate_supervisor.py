@@ -6,6 +6,14 @@ from bson import ObjectId
 
 from backend.db.mongo import async_db
 
+# [MCP] This tool is registered in Google Cloud Agent Builder as an
+# OpenAPI function tool. Gemini 3.5 Flash discovers and invokes it
+# at runtime via the Model Context Protocol (MCP) handshake.
+# The mongodb-mcp-server provides additional raw MongoDB operations
+# (find, aggregate, insertOne) that Gemini can call directly.
+# Together they form Sentinel's dual-layer MCP integration.
+MCP_TOOL_NAME = "escalate_supervisor"
+
 _LEVELS = {1: "WATCH", 2: "ALERT", 3: "URGENT", 4: "CRITICAL_RESPONSE_REQUIRED"}
 _ACTIONS = {
     1: "Continue monitoring. No immediate action required.",
@@ -34,6 +42,7 @@ async def escalate_supervisor(
     chw_id: Optional[str] = None,
     override_level: Optional[int] = None
 ) -> dict:
+    print(f"[MCP] Tool invoked: escalate_supervisor | timestamp: {datetime.utcnow().isoformat()}")
 
     NOW = datetime.utcnow()
 

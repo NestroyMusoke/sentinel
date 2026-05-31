@@ -1,5 +1,4 @@
 
-
 from datetime import datetime
 from typing import Optional
 from bson import ObjectId
@@ -7,6 +6,14 @@ from fastapi import HTTPException
 
 from backend.db.mongo import async_db
 from backend.gemini_parser import parse_chw_report
+
+# [MCP] This tool is registered in Google Cloud Agent Builder as an
+# OpenAPI function tool. Gemini 3.5 Flash discovers and invokes it
+# at runtime via the Model Context Protocol (MCP) handshake.
+# The mongodb-mcp-server provides additional raw MongoDB operations
+# (find, aggregate, insertOne) that Gemini can call directly.
+# Together they form Sentinel's dual-layer MCP integration.
+MCP_TOOL_NAME = "log_field_report"
 
 
 def _calculate_risk_score(contact: dict, new_symptoms: list) -> int:
@@ -34,6 +41,7 @@ async def log_field_report(
     raw_text: str,
     chw_id: Optional[str] = None
 ) -> dict:
+    print(f"[MCP] Tool invoked: log_field_report | timestamp: {datetime.utcnow().isoformat()}")
 
     # ── 1. Parse with Gemini 3.5 Flash ──────────────────────
     try:

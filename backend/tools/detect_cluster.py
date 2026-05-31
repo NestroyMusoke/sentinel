@@ -1,11 +1,18 @@
-
-
 from datetime import datetime
 from typing import Optional
+import os
 from bson import ObjectId
 from fastapi import HTTPException
 
 from backend.db.mongo import async_db
+
+# [MCP] This tool is registered in Google Cloud Agent Builder as an
+# OpenAPI function tool. Gemini 3.5 Flash discovers and invokes it
+# at runtime via the Model Context Protocol (MCP) handshake.
+# The mongodb-mcp-server provides additional raw MongoDB operations
+# (find, aggregate, insertOne) that Gemini can call directly.
+# Together they form Sentinel's dual-layer MCP integration.
+MCP_TOOL_NAME = "detect_cluster"
 
 
 def _confidence(contacts: list) -> float:
@@ -28,6 +35,7 @@ async def detect_cluster(
     exposure_event_id: Optional[str] = None,
     district: Optional[str] = None
 ) -> dict:
+    print(f"[MCP] Tool invoked: detect_cluster | timestamp: {datetime.utcnow().isoformat()}")
 
     NOW = datetime.utcnow()
 

@@ -1,12 +1,107 @@
-
-
 from datetime import datetime, timedelta
 from typing import Optional
+import os
+
+from google import genai
+from google.genai.types import GenerateContentConfig
 
 from backend.db.mongo import async_db
 
+# [MCP] This tool is registered in Google Cloud Agent Builder as an
+# OpenAPI function tool. Gemini 3.5 Flash discovers and invokes it
+# at runtime via the Model Context Protocol (MCP) handshake.
+# The mongodb-mcp-server provides additional raw MongoDB operations
+# (find, aggregate, insertOne) that Gemini can call directly.
+# Together they form Sentinel's dual-layer MCP integration.
+MCP_TOOL_NAME = "get_morning_brief"
+
+_genai_client = None
+
+def _get_client():
+    global _genai_client
+    if _genai_client is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            _genai_client = genai.Client(api_key=api_key)
+        else:
+            _genai_client = genai.Client(
+                vertexai=True,
+                project=os.getenv("GOOGLE_CLOUD_PROJECT"),
+                location=os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
+            )
+    return _genai_client
+
+
+async def _generate_intelligence_assessment(
+    total_active: int,
+    peak_contacts: list,
+    escalated: list,
+    missed_fu: int,
+    at_risk_chws: list
+) -> str:
+    """
+    Gemini 3.5 Flash generates a contextual intelligence assessment
+    of the current operational situation. This is where the AI reasons,
+    not just retrieves.
+    """
+    try:
+        situation = (
+            f"Outbreak monitoring system status:\n"
+            f"- Total contacts under monitoring: {total_active}\n"
+            f"- Contacts in peak risk window (days 5-10): {len(peak_contacts)}\n"
+            f"- Escalated cases requiring urgent action: {len(escalated)}\n"
+            f"- Overdue missed follow-up visits: {missed_fu}\n"
+            f"- CHWs with degraded heartbeat scores (<50): {len(at_risk_chws)}\n"
+        )
+
+        if peak_contacts:
+            top = peak_contacts[:3]
+            situation += "\nHighest risk contacts in peak window:\n"
+            for c in top:
+                syms = ", ".join(c.get("symptoms", [])) or "asymptomatic"
+                situation += (
+                    f"- {c.get('contactRef')} {c.get('name')}: "
+                    f"Day {c.get('monitoringDay')}, "
+                    f"Risk {c.get('riskScore')}/100, "
+                    f"Symptoms: {syms}, "
+                    f"CHW: {c.get('assignedCHWName')}\n"
+                )
+
+        if at_risk_chws:
+            situation += "\nCHWs with operational concerns:\n"
+            for chw in at_risk_chws[:3]:
+                situation += (
+                    f"- {chw.get('name')} ({chw.get('chwId')}): "
+                    f"score {chw.get('heartbeatScore')}/100, "
+                    f"status: {chw.get('status')}\n"
+                )
+
+        prompt = (
+            "You are SENTINEL, an autonomous outbreak coordination intelligence "
+            "system operating in Kampala, Uganda during an active Bundibugyo Ebola "
+            "outbreak (WHO PHEIC, May 2026). There is no vaccine for this strain.\n\n"
+            f"Current system status:\n{situation}\n\n"
+            "In 2-3 sentences, provide a precise operational intelligence assessment: "
+            "What is the most critical risk pattern you see? What is the single most "
+            "important action the district supervisor should prioritize today? "
+            "Be specific, operational, and grounded in the data above. "
+            "Do not be generic. Name specific contacts or CHWs if relevant."
+        )
+
+        client = _get_client()
+        response = client.models.generate_content(
+            model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
+            contents=prompt,
+            config=GenerateContentConfig(temperature=0.3, max_output_tokens=200)
+        )
+        return response.text.strip()
+
+    except Exception as e:
+        return f"Assessment unavailable: {str(e)[:80]}"
+
 
 async def get_morning_brief(target_date: Optional[str] = None) -> dict:
+    print(f"[MCP] Tool invoked: get_morning_brief | timestamp: {datetime.utcnow().isoformat()}")
 
     NOW = datetime.utcnow()
 
@@ -67,6 +162,13 @@ async def get_morning_brief(target_date: Optional[str] = None) -> dict:
 
     priority_visits.sort(key=lambda x: x["riskScore"], reverse=True)
 
+
+    # Gemini contextual intelligence assessment
+    intelligence = await _generate_intelligence_assessment(
+        total_active, peak_contacts, escalated,
+        len(missed_fu), at_risk_chws
+    )
+
     # 7. Build brief text
     lines = [
         f"SENTINEL OPERATIONAL BRIEF — {NOW.strftime('%Y-%m-%d %H:%M UTC')}",
@@ -111,6 +213,7 @@ async def get_morning_brief(target_date: Optional[str] = None) -> dict:
     lines += ["", "— END OF BRIEF —"]
     brief_text = "\n".join(lines)
 
+
     # 8. Store brief
     await async_db["operational_alerts"].insert_one({
         "alertType": "morning_brief",
@@ -123,6 +226,7 @@ async def get_morning_brief(target_date: Optional[str] = None) -> dict:
         "priorityVisitCount": len(priority_visits),
         "priorityVisits": priority_visits[:10],
         "briefText": brief_text,
+        "intelligenceAssessment": intelligence,
         "createdAt": NOW
     })
 
@@ -136,6 +240,7 @@ async def get_morning_brief(target_date: Optional[str] = None) -> dict:
         "priority_visit_count": len(priority_visits),
         "priority_visits": priority_visits[:10],
         "brief_text": brief_text,
+        "intelligence_assessment": intelligence,
         "message": (
             f"Morning brief generated — {NOW.strftime('%Y-%m-%d')} | "
             f"{len(priority_visits)} priority visits | "
