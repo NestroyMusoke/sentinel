@@ -97,10 +97,22 @@ with evidence, not inference.
 **4 — Generates autonomous operational briefs**
 
 At 6 AM East Africa Time, Google Cloud Scheduler triggers the morning brief
-without a human request. Every CHW's priority visit list for the day is
+without a human request. The brief includes a Gemini 3.5 Flash intelligence assessment which is a contextual
+analysis of the highest-risk pattern visible in the current data and the
+single most important supervisory action for the day. This is Gemini
+reasoning about a real operational situation, not filling a template. Every CHW's priority visit list for the day is
 assembled automatically. A CHW with reassigned contacts from a silent
 colleague receives an updated list. They never know the system intervened.
 They just see their day.
+
+**5 — Renders the operational picture in real time**
+
+A live Leaflet.js map of Kampala renders every CHW and monitored contact as
+a location marker. CHW markers pulse red when heartbeat scores drop below the
+collapse threshold. Contact markers scale by risk score. When autonomous
+reassignment fires, contact markers flash and resolve to their new CHW. The
+map and the event feed update together — giving supervisors an instant
+operational picture without navigating a dashboard.
 
 ---
 
@@ -350,7 +362,7 @@ is the primary determinant of outcomes when no vaccine exists.
 | Deployment | Google Cloud Run (min-instances=1) | Persistent background tasks; SSL/TLS handled; public HTTPS endpoint for Cloud Scheduler |
 | Autonomous scheduling | Google Cloud Scheduler | Three jobs: morning brief (6 AM EAT), collapse check (every 2h), cluster scan (every 4h) |
 | Terminal UI | Vanilla HTML/CSS/JS | SSE event stream; dark operations console aesthetic; no frameworks |
-
+| Operational map | Leaflet.js + CartoDB dark tiles | Real-time CHW/contact location rendering; marker color reflects live heartbeat score and risk score; collapse events trigger map animations |
 ---
 
 ## Autonomous Scheduling
@@ -453,11 +465,11 @@ to call based on the agent system prompt and conversation context.
 
 **Demo video:** [Link]
 
-The terminal UI connects to the live SSE stream. Events appear in real time
-as the autonomous systems run. The demo scenario — Grace's field report,
-the Kiwatule cluster detection, Namwanje's silence, the autonomous
-reassignment cascade — can be reproduced by reseeding the database and
-restarting the server.
+The operational map shows all 8 CHWs and 12 monitored contacts across
+Kampala. CHW Namwanje Aisha's marker pulses red — 11 hours silent, score
+22/100. The change stream fires within 10 seconds of server start. Watch
+contacts R-027 and R-031 reassign to Grace in real time, both on the map
+and in the event feed simultaneously.
 
 ---
 
