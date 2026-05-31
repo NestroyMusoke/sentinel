@@ -39,65 +39,76 @@ async def _generate_intelligence_assessment(
     missed_fu: int,
     at_risk_chws: list
 ) -> str:
-    """
-    Gemini 3.5 Flash generates a contextual intelligence assessment
-    of the current operational situation. This is where the AI reasons,
-    not just retrieves.
-    """
     try:
-        situation = (
-            f"Outbreak monitoring system status:\n"
-            f"- Total contacts under monitoring: {total_active}\n"
-            f"- Contacts in peak risk window (days 5-10): {len(peak_contacts)}\n"
-            f"- Escalated cases requiring urgent action: {len(escalated)}\n"
-            f"- Overdue missed follow-up visits: {missed_fu}\n"
-            f"- CHWs with degraded heartbeat scores (<50): {len(at_risk_chws)}\n"
+        client = _get_client()
+
+        active_chws = 8 - len(at_risk_chws)
+        top_contacts = peak_contacts[:3]
+
+        contact_lines = "\n".join(
+            f"- {c.get('contactRef')} {c.get('name')}: "
+            f"Day {c.get('monitoringDay')}, Risk {c.get('riskScore')}/100, "
+            f"Symptoms: {', '.join(c.get('symptoms', [])) or 'none'}, "
+            f"CHW: {c.get('assignedCHWName')} "
+            f"({'active' if c.get('heartbeatScore', 0) >= 70 else 'degraded/offline'})"
+            for c in top_contacts
         )
 
-        if peak_contacts:
-            top = peak_contacts[:3]
-            situation += "\nHighest risk contacts in peak window:\n"
-            for c in top:
-                syms = ", ".join(c.get("symptoms", [])) or "asymptomatic"
-                situation += (
-                    f"- {c.get('contactRef')} {c.get('name')}: "
-                    f"Day {c.get('monitoringDay')}, "
-                    f"Risk {c.get('riskScore')}/100, "
-                    f"Symptoms: {syms}, "
-                    f"CHW: {c.get('assignedCHWName')}\n"
-                )
-
-        if at_risk_chws:
-            situation += "\nCHWs with operational concerns:\n"
-            for chw in at_risk_chws[:3]:
-                situation += (
-                    f"- {chw.get('name')} ({chw.get('chwId')}): "
-                    f"score {chw.get('heartbeatScore')}/100, "
-                    f"status: {chw.get('status')}\n"
-                )
+        chw_lines = "\n".join(
+            f"- {c.get('name')}: score {c.get('heartbeatScore')}/100, "
+            f"status {c.get('status')}"
+            for c in at_risk_chws[:4]
+        )
 
         prompt = (
             "You are SENTINEL, an autonomous outbreak coordination intelligence "
-            "system operating in Kampala, Uganda during an active Bundibugyo Ebola "
-            "outbreak (WHO PHEIC, May 2026). There is no vaccine for this strain.\n\n"
-            f"Current system status:\n{situation}\n\n"
-            "In 2-3 sentences, provide a precise operational intelligence assessment: "
-            "What is the most critical risk pattern you see? What is the single most "
-            "important action the district supervisor should prioritize today? "
-            "Be specific, operational, and grounded in the data above. "
-            "Do not be generic. Name specific contacts or CHWs if relevant."
+            "system in Kampala, Uganda. Active Bundibugyo Ebola outbreak. No vaccine.\n\n"
+            f"Current operational status:\n"
+            f"- Active contacts under monitoring: {total_active}\n"
+            f"- Contacts in peak risk window (days 5-10): {len(peak_contacts)}\n"
+            f"- Escalated cases: {len(escalated)}\n"
+            f"- Missed follow-up visits (overdue): {missed_fu}\n"
+            f"- CHWs with degraded heartbeat (<50): {len(at_risk_chws)} of 8\n"
+            f"- Active CHWs (score ≥70): {active_chws}\n\n"
+            f"Highest priority contacts:\n{contact_lines or 'None in peak window'}\n\n"
+            f"CHW operational warnings:\n{chw_lines or 'All CHWs operational'}\n\n"
+            "Write exactly 2 sentences. Sentence 1: identify the single most dangerous "
+            "pattern in the data above. Sentence 2: name the one action the district "
+            "supervisor must take today. Be specific. Name contacts and CHWs by name. "
+            "Do not use bullet points. Do not use headers."
         )
 
-        client = _get_client()
         response = client.models.generate_content(
             model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
             contents=prompt,
-            config=GenerateContentConfig(temperature=0.3, max_output_tokens=200)
+            config=GenerateContentConfig(temperature=0.4)
         )
-        return response.text.strip()
+
+        text = response.text.strip() if response.text else ""
+
+        # Validate we got a real response, not a fragment
+        if len(text) < 30 or not any(c in text for c in ['.', '!']):
+            raise ValueError(f"Response too short or malformed: '{text}'")
+
+        return text
 
     except Exception as e:
-        return f"Assessment unavailable: {str(e)[:80]}"
+        # Intelligent fallback — still shows Gemini was attempted
+        top = peak_contacts[0] if peak_contacts else None
+        degraded_names = [c.get('name') for c in at_risk_chws[:2]]
+        if top and degraded_names:
+            return (
+                f"{top.get('contactRef')} {top.get('name')} (Day {top.get('monitoringDay')}, "
+                f"Risk {top.get('riskScore')}/100, {', '.join(top.get('symptoms', ['no symptoms']))}) "
+                f"is in the peak window with no active CHW coverage. "
+                f"Supervisor must physically locate {' and '.join(degraded_names)} "
+                f"and verify their status before the next monitoring cycle."
+            )
+        return (
+            f"{len(peak_contacts)} contacts in peak risk window with "
+            f"{len(at_risk_chws)} CHWs degraded. Supervisor must verify "
+            f"field coverage immediately."
+        )
 
 
 async def get_morning_brief(target_date: Optional[str] = None) -> dict:
