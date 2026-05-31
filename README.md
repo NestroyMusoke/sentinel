@@ -49,6 +49,18 @@ is the problem that costs lives.
 
 ---
 
+##  What makes this an agent (not a chatbot)
+
+Sentinel qualifies as an autonomous agent because it:
+
+- Executes scheduled reasoning without prompts (Cloud Scheduler)
+- Reacts to real-time database events (MongoDB Change Streams)
+- Performs multi-step tool execution (Agent Builder orchestration)
+- Makes autonomous operational decisions (reassignment + escalation)
+- Maintains persistent system state (operational_topology memory layer)
+  
+---
+
 ## What Sentinel Does
 
 **Sentinel is not a symptom tracker. It is not a patient dashboard. It is
@@ -121,36 +133,51 @@ changed. Sentinel acted.
 
 ---
 
-## Architecture
 
-CHW submits natural language field report
-│
-▼
-Google Cloud Agent Builder
-Gemini 3.5 Flash — multi-step reasoning
-│
-┌───────────┼──────────────────────────┐
-│           │                          │
-▼           ▼                          ▼
-log_field   detect_cluster         detect_operational
-_report     (aggregation            _collapse
-(Gemini     pipeline)              (the differentiator)
-parsing)
-│           │                          │
-└───────────┴──────────────────────────┘
-│
-▼
-MongoDB Atlas — sentinel database
-├── contacts
-├── exposure_events
-├── follow_ups
-├── operational_topology  ◄─── Change Streams
-└── operational_alerts
-Change Stream  ──► detect_operational_collapse  (event-driven, no polling)
-Cloud Scheduler ──► morning_brief / collapse_check / cluster_scan (scheduled)
-FastAPI + SSE  ──► Terminal UI  (real-time operational feed)
-MCP Protocol   ──► mongodb-mcp-server (runtime tool discovery by Gemini)
+##  Architecture Overview
 
+```
+                    ┌────────────────────────────┐
+                    │  CHW Field Report (text)   │
+                    └─────────────┬──────────────┘
+                                  │
+                                  ▼
+                    ┌────────────────────────────┐
+                    │ Google Cloud Agent Builder │
+                    │ Gemini 3.5 Flash (reason)  │
+                    └─────────────┬──────────────┘
+                                  │
+          ┌───────────────────────┼────────────────────────┐
+          │                       │                        │
+          ▼                       ▼                        ▼
+┌──────────────────┐   ┌──────────────────┐   ┌──────────────────────────┐
+│ log_field_report │   │ detect_cluster   │   │ detect_operational_      │
+│ (Gemini parsing) │   │ (MongoDB agg)    │   │ collapse (core logic)    │
+└──────────────────┘   └──────────────────┘   └──────────────────────────┘
+          │                       │                        │
+          └───────────────┬───────┴──────────────┬────────┘
+                          ▼                      ▼
+                ┌────────────────────────────────────┐
+                │        MongoDB Atlas               │
+                │------------------------------------│
+                │ contacts                           │
+                │ exposure_events                   │
+                │ follow_ups                       │
+                │ operational_topology ◄────────────┤
+                └──────────────┬─────────────────────┘
+                               │
+               ┌───────────────┴────────────────┐
+               ▼                                ▼
+   Change Streams (real-time)        Cloud Scheduler (timed)
+               │                                │
+               ▼                                ▼
+   detect_operational_collapse      morning_brief / scans
+               │
+               ▼
+   ┌────────────────────────────┐
+   │ SSE Terminal UI (live feed)│
+   └────────────────────────────┘
+```
 ---
 
 ## MongoDB Architecture
@@ -455,14 +482,16 @@ form in the gap. Sentinel watches for that gap across all of them.
 
 ---
 
-## Repository Structure
+##  Repository Structure
 
+```bash
 sentinel/
 ├── backend/
-│   ├── main.py                          # FastAPI app + lifespan + SSE
-│   ├── gemini_parser.py                 # Gemini 3.5 Flash JSON extraction
-│   ├── validators.py                    # Pydantic models
-│   ├── db/mongo.py                      # Motor async + PyMongo sync clients
+│   ├── main.py
+│   ├── gemini_parser.py
+│   ├── validators.py
+│   ├── db/
+│   │   └── mongo.py
 │   ├── tools/
 │   │   ├── log_field_report.py
 │   │   ├── detect_cluster.py
@@ -471,23 +500,31 @@ sentinel/
 │   │   ├── get_morning_brief.py
 │   │   └── detect_operational_collapse.py
 │   └── streams/
-│       ├── heartbeat_degradation.py     # Score decay worker
-│       └── heartbeat_watcher.py        # Change stream listener
+│       ├── heartbeat_degradation.py
+│       └── heartbeat_watcher.py
+
 ├── frontend/
-│   └── index.html                       # Terminal operations UI
+│   └── index.html
+
 ├── mcp/
-│   └── mcp_config.json                  # MongoDB MCP server connection
+│   └── mcp_config.json
+
 ├── agent_config/
-│   ├── system_prompt.txt                # Gemini agent reasoning prompt
-│   └── tool_definitions.json            # OpenAPI tool schemas
+│   ├── system_prompt.txt
+│   └── tool_definitions.json
+
 ├── seed/
-│   └── seed_data.py                     # Demo outbreak scenario
+│   └── seed_data.py
+
 ├── deployment/
-│   ├── scheduler_setup.sh               # Cloud Scheduler gcloud commands
-│   └── cloud_run.env                    # Environment variables (gitignored)
+│   ├── scheduler_setup.sh
+│   └── cloud_run.env
+
 ├── Dockerfile
 ├── .env.example
+├── requirements.txt
 └── README.md
+```
 
 
 ---
