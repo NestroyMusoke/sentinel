@@ -64,9 +64,9 @@ _SCHEMA = {
     "required": ["contactName"]
 }
 
-
 _PROMPT_TEMPLATE = """\
-You are a medical data extraction assistant for a disease outbreak monitoring program in Uganda.
+You are a medical data extraction assistant for a disease outbreak \
+monitoring program in Uganda.
 
 Extract structured fields from this CHW (Community Health Worker) field report.
 
@@ -78,9 +78,7 @@ Strict rules:
 - contactName is always required
 
 CHW Report:
-"""
 {report}
-"""
 """
 
 
